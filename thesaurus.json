@@ -1,0 +1,101 @@
+{
+  "search": [
+    "retrieval",
+    "query",
+    "lookup",
+    "find"
+  ],
+  "retrieval": [
+    "search",
+    "lookup",
+    "recovery",
+    "fetching"
+  ],
+  "query": [
+    "search",
+    "question",
+    "request",
+    "expression"
+  ],
+  "car": [
+    "automobile",
+    "vehicle",
+    "motorcar"
+  ],
+  "automobile": [
+    "car",
+    "vehicle"
+  ],
+  "index": [
+    "catalog",
+    "dictionary",
+    "lexicon",
+    "postings"
+  ],
+  "dictionary": [
+    "lexicon",
+    "vocabulary",
+    "glossary"
+  ],
+  "lexicon": [
+    "dictionary",
+    "vocabulary"
+  ],
+  "compression": [
+    "encoding",
+    "compaction",
+    "shrinkage"
+  ],
+  "encoding": [
+    "compression",
+    "coding"
+  ],
+  "fast": [
+    "rapid",
+    "quick",
+    "accelerated"
+  ],
+  "error": [
+    "typo",
+    "misspelling",
+    "mistake"
+  ],
+  "typo": [
+    "error",
+    "misspelling"
+  ],
+  "ranking": [
+    "scoring",
+    "ordering",
+    "grading",
+    "reranking"
+  ],
+  "scoring": [
+    "ranking",
+    "weighting"
+  ],
+  "feedback": [
+    "rocchio",
+    "reranking",
+    "refinement"
+  ],
+  "stemming": [
+    "lemmatization",
+    "morphology",
+    "normalization"
+  ],
+  "lemmatization": [
+    "stemming",
+    "morphology"
+  ],
+  "wildcard": [
+    "permuterm",
+    "kgram",
+    "trigram",
+    "pattern"
+  ],
+  "soundex": [
+    "phonetic",
+    "homophone"
+  ]
+}

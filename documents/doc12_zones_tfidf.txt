@@ -1,0 +1,8 @@
+Title: Parametric Search Zone Scoring and TF-IDF Vector Space
+Author: Gerard Salton
+Category: Retrieval Models
+Year: 2025
+Language: English
+ACL: public
+---
+Documents contain structured metadata fields and free-text zones such as title, author, and body. Linear zone combinations assign weighted scores to matches in each region. For free-text ranking, the vector space model combines sublinear logarithmic term frequency with inverse document frequency and computes cosine similarity between length-normalized query and document vectors.

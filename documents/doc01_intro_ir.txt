@@ -1,0 +1,8 @@
+Title: Introduction to Information Retrieval and Web Search
+Author: Manning and Raghavan
+Category: Foundations
+Year: 2024
+Language: English
+ACL: public
+---
+Information retrieval deals with the representation, storage, organization of, and access to unstructured text documents. Unlike structured relational databases that evaluate exact table predicates, web search engines process free text queries over billions of documents. Classic examples include searching Shakespeare plays for Brutus and Caesar but not Calpurnia using incidence matrices and inverted indexes.

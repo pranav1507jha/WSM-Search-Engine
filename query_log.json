@@ -1,0 +1,16 @@
+[
+  "inverted index construction",
+  "inverted index skip pointers",
+  "boolean retrieval query optimization",
+  "spelling correction edit distance",
+  "spelling correction jaccard trigram",
+  "dictionary compression front coding",
+  "postings compression variable byte elias gamma",
+  "relevance feedback rocchio algorithm",
+  "vector space model cosine similarity tfidf",
+  "wildcard queries permuterm index",
+  "phrase queries biword positional index",
+  "soundex phonetic matching algorithm",
+  "porter stemming lemmatization normalization",
+  "(Brutus OR Caesar) AND NOT Calpurnia"
+]

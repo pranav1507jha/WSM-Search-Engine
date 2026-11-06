@@ -1,0 +1,8 @@
+Title: Spelling Correction Edit Distance and Jaccard Overlap
+Author: Karen Kukich
+Category: Tolerant Retrieval
+Year: 2024
+Language: English
+ACL: public
+---
+Spelling correction repairs user typos in isolated query terms and multi-word phrases. Candidate terms are pruned rapidly by computing the Jaccard coefficient over character trigrams before running dynamic programming Levenshtein edit distance. Weighted edit distance incorporates QWERTY keyboard adjacency matrices, while context-sensitive correction inspects surrounding biword frequencies to fix real-word errors like flew form Heathrow.

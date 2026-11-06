@@ -1,0 +1,8 @@
+Title: Wildcard Queries Permuterm and K-Gram Indexes
+Author: Prabhakar Raghavan
+Category: Tolerant Retrieval
+Year: 2025
+Language: English
+ACL: public
+---
+Wildcard queries support prefix, suffix, and infix pattern matching when users are uncertain of exact spelling. The permuterm index appends a terminal dollar symbol to each term and indexes all cyclic rotations so any single wildcard query translates into a prefix range lookup. Alternatively, a bigram or trigram index decomposes terms into overlapping character sequences and intersects candidate terms followed by regex post-filtering.

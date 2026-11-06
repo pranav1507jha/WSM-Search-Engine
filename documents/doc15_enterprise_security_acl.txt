@@ -1,0 +1,8 @@
+Title: Enterprise Search Access Control Lists and Restricted Roster
+Author: Security Administrator
+Category: Architecture
+Year: 2026
+Language: English
+ACL: admin
+---
+Enterprise document repositories enforce strict Access Control Lists so confidential records like the executive salary roster and internal audit reports are only returned to authenticated admin users. User group memberships are intersected with document ACL bit-vectors at query evaluation time.

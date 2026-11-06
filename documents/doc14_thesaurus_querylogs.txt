@@ -1,0 +1,8 @@
+Title: Global Query Expansion Thesauri and Query Log Mining
+Author: Susan Dumais
+Category: Re-Ranking
+Year: 2023
+Language: English
+ACL: public
+---
+Global query expansion improves recall by augmenting queries with domain synonyms from a controlled thesaurus, mapping automobile to car and retrieval to search. Search engines also mine historical query logs and clickstreams to recommend co-occurring query terms and apply indirect relevance feedback boosts to frequently clicked documents.

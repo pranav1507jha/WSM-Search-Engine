@@ -1,0 +1,8 @@
+Title: Rocchio Relevance Feedback and Probabilistic Re-Ranking
+Author: Joseph Rocchio
+Category: Re-Ranking
+Year: 2025
+Language: English
+ACL: public
+---
+Local relevance feedback refines initial search rankings using explicit or implicit user judgments. The Rocchio algorithm shifts the query vector toward the centroid of relevant documents and away from non-relevant documents. Probabilistic relevance feedback estimates term weights via the Binary Independence Model, while pseudo-relevance feedback automatically expands queries using the top three retrieved results.

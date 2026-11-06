@@ -1,0 +1,8 @@
+Title: Boolean Retrieval Model and Query Optimization
+Author: Hinrich Schutze
+Category: Retrieval Models
+Year: 2023
+Language: English
+ACL: public
+---
+The Boolean retrieval model evaluates queries connected by AND, OR, and NOT operators. Legal search systems like WestLaw rely on exact boolean matching and proximity operators such as limit within three words of statute. Query optimization processes conjunctions in order of increasing document frequency so the smallest intermediate postings set is intersected first.

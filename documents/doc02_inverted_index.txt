@@ -1,0 +1,8 @@
+Title: Inverted Index Construction and Skip Pointers
+Author: Christopher Manning
+Category: Indexing
+Year: 2024
+Language: English
+ACL: public
+---
+An inverted index maps every distinct dictionary term to a sorted postings list of document identifiers and term frequencies. During boolean AND query processing, two postings lists are intersected in linear time using a simultaneous merge walk. Augmenting postings lists with evenly spaced skip pointers of length square root of L allows the intersection algorithm to bypass non-matching document IDs rapidly.

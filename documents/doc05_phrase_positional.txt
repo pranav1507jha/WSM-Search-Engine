@@ -1,0 +1,8 @@
+Title: Phrase Queries Biword and Positional Indexes
+Author: Williams and Zobel
+Category: Indexing
+Year: 2025
+Language: English
+ACL: public
+---
+About ten percent of web search queries are phrase queries enclosed in quotation marks, such as stanford university palo alto. Biword indexes store every consecutive word pair as a vocabulary entry for immediate two-word lookup. Positional indexes record exact word offsets within each document, enabling arbitrary multi-word phrase verification and directional or windowed proximity search.

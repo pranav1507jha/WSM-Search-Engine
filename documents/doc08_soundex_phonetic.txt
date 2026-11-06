@@ -1,0 +1,8 @@
+Title: Soundex Phonetic Hashing for Proper Nouns
+Author: Robert Russell
+Category: Tolerant Retrieval
+Year: 2022
+Language: English
+ACL: public
+---
+Phonetic retrieval resolves pronunciation equivalents across variant surname spellings such as Chebyshev and Tchebycheff, or Herman and Hermann, or Robert and Rupert. The Soundex algorithm retains the initial letter, maps consonant groups to digits one through six, deduplicates adjacent identical digits, drops vowels, and pads the result to a four-character alphanumeric code.

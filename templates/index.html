@@ -1,0 +1,881 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WSM Search Engine — Boolean, Tolerant & Ranked IR</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const PRESET_QUERIES = [
+      { label: "Boolean + Optimization", mode: "boolean", q: "(Brutus OR Caesar) AND NOT Calpurnia" },
+      { label: "Biword Phrase (2 words)", mode: "boolean", q: '"relevance feedback"' },
+      { label: "Positional Phrase (3+ words)", mode: "boolean", q: '"stanford university palo alto"' },
+      { label: "Proximity (/k words)", mode: "boolean", q: "limit /3 statute" },
+      { label: "Permuterm Wildcard (*)", mode: "boolean", q: "automat* AND stem*" },
+      { label: "Spell Correction + Did You Mean", mode: "advanced", q: "flew form heathrow" },
+      { label: "Isolated Typo (Jaccard + Edit Dist)", mode: "advanced", q: "relevence feedbak" },
+      { label: "Soundex Phonetic Match", mode: "advanced", q: "Rupert Tchebycheff", soundex: true },
+      { label: "Thesaurus + Query Log Expansion", mode: "advanced", q: "automobile retrieval", thesaurus: true, qlog: true },
+      { label: "Enterprise ACL Admin Test", mode: "advanced", q: "salary roster audit" }
+    ];
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("search"); // search | stats | corpus
+      const [searchMode, setSearchMode] = useState("advanced"); // boolean | advanced
+      const [query, setQuery] = useState("inverted index skip pointers");
+
+      // Linguistic & Tolerant Toggles
+      const [useStemming, setUseStemming] = useState(true);
+      const [stemmerType, setStemmerType] = useState("porter");
+      const [useLemmatization, setUseLemmatization] = useState(true);
+      const [removeStopwords, setRemoveStopwords] = useState(false);
+      const [wildcardMode, setWildcardMode] = useState("permuterm");
+      const [userRole, setUserRole] = useState("public");
+
+      // Expansion & Feedback Toggles
+      const [enableSpell, setEnableSpell] = useState(true);
+      const [enableSoundex, setEnableSoundex] = useState(true);
+      const [enableThesaurus, setEnableThesaurus] = useState(true);
+      const [enableQlog, setEnableQlog] = useState(true);
+      const [feedbackMode, setFeedbackMode] = useState("none"); // none | rocchio | bim | pseudo | clicks
+
+      // Zone Weights & Parametric Filters
+      const [zoneWeights, setZoneWeights] = useState({ title: 0.5, author: 0.2, body: 0.3 });
+      const [paramCategory, setParamCategory] = useState("all");
+      const [paramYear, setParamYear] = useState("all");
+
+      // Relevance judgments
+      const [relevantIds, setRelevantIds] = useState([]);
+      const [nonrelevantIds, setNonrelevantIds] = useState([]);
+
+      // Response & UI states
+      const [searchResponse, setSearchResponse] = useState(null);
+      const [errorMsg, setErrorMsg] = useState("");
+      const [loading, setLoading] = useState(false);
+      const [selectedDoc, setSelectedDoc] = useState(null);
+      const [statsData, setStatsData] = useState(null);
+      const [corpusDocs, setCorpusDocs] = useState([]);
+
+      // New Document Form
+      const [newDoc, setNewDoc] = useState({
+        title: "", author: "", category: "Indexing", year: "2026", acl: "public", body: ""
+      });
+
+      const runSearch = async (overrideQuery, overrideMode, overrideFeedback) => {
+        const qToRun = overrideQuery !== undefined ? overrideQuery : query;
+        const mToRun = overrideMode !== undefined ? overrideMode : searchMode;
+        const fbToRun = overrideFeedback !== undefined ? overrideFeedback : feedbackMode;
+
+        setLoading(true);
+        setErrorMsg("");
+        try {
+          const endpoint = mToRun === "boolean" ? "/api/boolean" : "/api/advanced";
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: qToRun,
+              options: {
+                use_stemming: useStemming,
+                stemmer_type: stemmerType,
+                use_lemmatization: useLemmatization,
+                remove_stopwords: removeStopwords,
+                wildcard_mode: wildcardMode,
+                user_role: userRole,
+                enable_spell: enableSpell,
+                enable_soundex: enableSoundex,
+                enable_thesaurus: enableThesaurus,
+                enable_qlog: enableQlog,
+                feedback_mode: fbToRun,
+                relevant_ids: relevantIds,
+                nonrelevant_ids: nonrelevantIds,
+                zone_weights: zoneWeights,
+                parametric_filters: { category: paramCategory, year: paramYear }
+              }
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setErrorMsg(data.error || "Query execution failed.");
+            setSearchResponse(null);
+          } else {
+            setSearchResponse(data);
+          }
+        } catch (err) {
+          setErrorMsg("Backend connection error.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const fetchStats = async () => {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        setStatsData(data);
+      };
+
+      const fetchCorpus = async () => {
+        const res = await fetch(`/api/documents?role=${userRole}`);
+        const data = await res.json();
+        setCorpusDocs(data.documents || []);
+      };
+
+      useEffect(() => {
+        runSearch();
+        fetchStats();
+        fetchCorpus();
+      }, []);
+
+      const openDocumentModal = async (docId) => {
+        await fetch("/api/click", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, doc_id: docId })
+        });
+        const res = await fetch(`/api/documents/${docId}`);
+        if (res.ok) {
+          setSelectedDoc(await res.json());
+        }
+      };
+
+      const toggleRelevant = (id) => {
+        setNonrelevantIds(nonrelevantIds.filter(x => x !== id));
+        setRelevantIds(relevantIds.includes(id) ? relevantIds.filter(x => x !== id) : [...relevantIds, id]);
+      };
+
+      const toggleNonrelevant = (id) => {
+        setRelevantIds(relevantIds.filter(x => x !== id));
+        setNonrelevantIds(nonrelevantIds.includes(id) ? nonrelevantIds.filter(x => x !== id) : [...nonrelevantIds, id]);
+      };
+
+      const applyPreset = (p) => {
+        setQuery(p.q);
+        setSearchMode(p.mode);
+        if (p.soundex) setEnableSoundex(true);
+        if (p.thesaurus) setEnableThesaurus(true);
+        if (p.qlog) setEnableQlog(true);
+        setRelevantIds([]);
+        setNonrelevantIds([]);
+        runSearch(p.q, p.mode, "none");
+      };
+
+      const handleAddDocument = async (e) => {
+        e.preventDefault();
+        if (!newDoc.title || !newDoc.body) return;
+        await fetch("/api/documents/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newDoc)
+        });
+        setNewDoc({ title: "", author: "", category: "Indexing", year: "2026", acl: "public", body: "" });
+        fetchCorpus();
+        fetchStats();
+      };
+
+      const handleDeleteDoc = async (id) => {
+        await fetch(`/api/documents/delete/${id}`, { method: "POST" });
+        fetchCorpus();
+        fetchStats();
+      };
+
+      const handleRestoreDocs = async () => {
+        await fetch("/api/documents/restore", { method: "POST" });
+        fetchCorpus();
+        fetchStats();
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* Header */}
+          <header className="bg-slate-900 text-white rounded-xl p-6 shadow-md mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider bg-indigo-500 rounded-full">
+                  WSM Course Project
+                </span>
+                <span className="text-xs text-slate-400">
+                  Pranav Kumar Jha (B124086) &bull; Sai Swarup Panda (B124106)
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold mt-1">
+                Web Search &amp; Mining: Tolerant Boolean &amp; Vector Space Retrieval Engine
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
+                <span className="text-slate-400 mr-1.5">ACL User Role:</span>
+                <select
+                  value={userRole}
+                  onChange={(e) => { setUserRole(e.target.value); }}
+                  className="bg-slate-700 text-white font-semibold px-2 py-0.5 rounded"
+                >
+                  <option value="public">Standard User (Public)</option>
+                  <option value="admin">Authenticated Admin (All ACLs)</option>
+                </select>
+              </div>
+
+              <div className="flex bg-slate-800 p-1 rounded-lg text-sm">
+                <button
+                  onClick={() => setActiveTab("search")}
+                  className={`px-3 py-1.5 rounded-md font-medium ${activeTab === "search" ? "bg-indigo-600 text-white" : "text-slate-300 hover:text-white"}`}
+                >
+                  Search &amp; Re-Rank
+                </button>
+                <button
+                  onClick={() => { setActiveTab("stats"); fetchStats(); }}
+                  className={`px-3 py-1.5 rounded-md font-medium ${activeTab === "stats" ? "bg-indigo-600 text-white" : "text-slate-300 hover:text-white"}`}
+                >
+                  Index &amp; Compression
+                </button>
+                <button
+                  onClick={() => { setActiveTab("corpus"); fetchCorpus(); }}
+                  className={`px-3 py-1.5 rounded-md font-medium ${activeTab === "corpus" ? "bg-indigo-600 text-white" : "text-slate-300 hover:text-white"}`}
+                >
+                  Dynamic Corpus ({corpusDocs.filter(d => !d.is_deleted).length})
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {activeTab === "search" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Configuration Sidebar */}
+              <aside className="lg:col-span-4 space-y-4">
+                {/* Linguistic Pipeline Card */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    1. Linguistic Preprocessing
+                  </h2>
+                  <div className="space-y-2.5 text-sm">
+                    <label className="flex items-center justify-between">
+                      <span className="font-medium">Lemmatization (Headword)</span>
+                      <input type="checkbox" checked={useLemmatization} onChange={e => setUseLemmatization(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
+                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 font-medium">
+                        <input type="checkbox" checked={useStemming} onChange={e => setUseStemming(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
+                        <span>Stemming</span>
+                      </label>
+                      <select
+                        value={stemmerType}
+                        onChange={e => setStemmerType(e.target.value)}
+                        disabled={!useStemming}
+                        className="border border-slate-300 rounded px-2 py-0.5 text-xs bg-slate-50"
+                      >
+                        <option value="porter">Porter (5-Phase)</option>
+                        <option value="lovins">Lovins (Longest Suffix)</option>
+                      </select>
+                    </div>
+                    <label className="flex items-center justify-between">
+                      <span className="font-medium">Stop-Word Removal</span>
+                      <input type="checkbox" checked={removeStopwords} onChange={e => setRemoveStopwords(e.target.checked)} className="h-4 w-4 accent-indigo-600" />
+                    </label>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                      <span className="font-medium">Wildcard Engine (*)</span>
+                      <select
+                        value={wildcardMode}
+                        onChange={e => setWildcardMode(e.target.value)}
+                        className="border border-slate-300 rounded px-2 py-0.5 text-xs bg-slate-50"
+                      >
+                        <option value="permuterm">Permuterm Index ($)</option>
+                        <option value="kgram">Bigram/Trigram Index</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tolerant & Global Expansion Card */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    2. Tolerant &amp; Query Expansion
+                  </h2>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input type="checkbox" checked={enableSpell} onChange={e => setEnableSpell(e.target.checked)} className="accent-indigo-600" />
+                      <span>Spell Check</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input type="checkbox" checked={enableSoundex} onChange={e => setEnableSoundex(e.target.checked)} className="accent-indigo-600" />
+                      <span>Soundex (4-Ch)</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input type="checkbox" checked={enableThesaurus} onChange={e => setEnableThesaurus(e.target.checked)} className="accent-indigo-600" />
+                      <span>Thesaurus</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                      <input type="checkbox" checked={enableQlog} onChange={e => setEnableQlog(e.target.checked)} className="accent-indigo-600" />
+                      <span>Query Log</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Zone Weighting & Parametric Filters */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    3. Zone Weights &amp; Parametric Filter
+                  </h2>
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <div className="flex justify-between font-medium mb-0.5">
+                        <span>Title Zone Weight</span>
+                        <span>{zoneWeights.title}</span>
+                      </div>
+                      <input type="range" min="0" max="1" step="0.1" value={zoneWeights.title}
+                        onChange={e => setZoneWeights({ ...zoneWeights, title: parseFloat(e.target.value) })}
+                        className="w-full accent-indigo-600" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between font-medium mb-0.5">
+                        <span>Author Zone Weight</span>
+                        <span>{zoneWeights.author}</span>
+                      </div>
+                      <input type="range" min="0" max="1" step="0.1" value={zoneWeights.author}
+                        onChange={e => setZoneWeights({ ...zoneWeights, author: parseFloat(e.target.value) })}
+                        className="w-full accent-indigo-600" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between font-medium mb-0.5">
+                        <span>Body Zone Weight</span>
+                        <span>{zoneWeights.body}</span>
+                      </div>
+                      <input type="range" min="0" max="1" step="0.1" value={zoneWeights.body}
+                        onChange={e => setZoneWeights({ ...zoneWeights, body: parseFloat(e.target.value) })}
+                        className="w-full accent-indigo-600" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <label className="block text-slate-500 mb-1">Category Field</label>
+                        <select value={paramCategory} onChange={e => setParamCategory(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-2 py-1 bg-slate-50">
+                          <option value="all">All Categories</option>
+                          <option value="Foundations">Foundations</option>
+                          <option value="Indexing">Indexing</option>
+                          <option value="Retrieval Models">Retrieval Models</option>
+                          <option value="Linguistics">Linguistics</option>
+                          <option value="Tolerant Retrieval">Tolerant Retrieval</option>
+                          <option value="Compression">Compression</option>
+                          <option value="Re-Ranking">Re-Ranking</option>
+                          <option value="Architecture">Architecture</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-500 mb-1">Year Field</label>
+                        <select value={paramYear} onChange={e => setParamYear(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-2 py-1 bg-slate-50">
+                          <option value="all">All Years</option>
+                          <option value="2022">2022</option>
+                          <option value="2023">2023</option>
+                          <option value="2024">2024</option>
+                          <option value="2025">2025</option>
+                          <option value="2026">2026</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Re-Ranking & Feedback Controls */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    4. Re-Ranking &amp; Relevance Feedback
+                  </h2>
+                  <select
+                    value={feedbackMode}
+                    onChange={e => setFeedbackMode(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 mb-2"
+                  >
+                    <option value="none">Initial TF-IDF + Zone Ranking</option>
+                    <option value="rocchio">Explicit Rocchio Feedback (+0.75 Dr, -0.15 Dnr)</option>
+                    <option value="bim">Probabilistic Feedback (Binary Independence Model)</option>
+                    <option value="pseudo">Pseudo-Relevance Feedback (Auto Top-3 Blind)</option>
+                    <option value="clicks">Indirect Clickstream Re-Ranking</option>
+                  </select>
+                  <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                    <span>Relevant Marked: <strong>{relevantIds.length}</strong></span>
+                    <span>Non-Relevant: <strong>{nonrelevantIds.length}</strong></span>
+                  </div>
+                  <button
+                    onClick={() => runSearch(query, "advanced", feedbackMode === "none" ? "rocchio" : feedbackMode)}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 rounded-lg text-xs transition"
+                  >
+                    Re-Rank Results with Selected Feedback
+                  </button>
+                </div>
+              </aside>
+
+              {/* Main Search & Results Column */}
+              <main className="lg:col-span-8 space-y-4">
+                {/* Search Bar Card */}
+                <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+                      <button
+                        onClick={() => setSearchMode("boolean")}
+                        className={`px-3 py-1.5 rounded-md ${searchMode === "boolean" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600"}`}
+                      >
+                        Exact Boolean / Phrase / Proximity Mode
+                      </button>
+                      <button
+                        onClick={() => setSearchMode("advanced")}
+                        className={`px-3 py-1.5 rounded-md ${searchMode === "advanced" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600"}`}
+                      >
+                        Ranked Tolerant &amp; Feedback Mode
+                      </button>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      Supports <code>AND, OR, NOT, (), "phrases", term1 /3 term2, prefix*</code>
+                    </span>
+                  </div>
+
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); runSearch(); }}
+                    className="flex gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                      placeholder="Enter Boolean expression, wildcard (*), phrase (&quot;...&quot;), or free-text query..."
+                      className="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition shadow-sm"
+                    >
+                      {loading ? "Searching..." : "Search"}
+                    </button>
+                  </form>
+
+                  {/* Preset Demo Queries */}
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="text-xs font-semibold text-slate-400 mb-1.5">One-Click Feature Verification Queries:</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PRESET_QUERIES.map((p, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => applyPreset(p)}
+                          className="text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 transition"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Error Banner */}
+                {errorMsg && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                    <strong>Query Error:</strong> {errorMsg}
+                  </div>
+                )}
+
+                {/* Context-Sensitive "Did You Mean" & Isolated Spell Suggestions */}
+                {searchResponse && (searchResponse.did_you_mean || (searchResponse.spell_suggestions && searchResponse.spell_suggestions.length > 0)) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-sm space-y-1.5">
+                    {searchResponse.did_you_mean && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-amber-900">Context-Sensitive Biword Correction — Did you mean:</span>
+                        <button
+                          onClick={() => { setQuery(searchResponse.did_you_mean); runSearch(searchResponse.did_you_mean); }}
+                          className="underline font-bold text-indigo-700 hover:text-indigo-900"
+                        >
+                          "{searchResponse.did_you_mean}"
+                        </button>
+                      </div>
+                    )}
+                    {searchResponse.spell_suggestions && searchResponse.spell_suggestions.map((item, idx) => (
+                      <div key={idx} className="text-xs text-amber-800">
+                        Isolated Spell Candidates for <strong>"{item.original}"</strong>:{" "}
+                        {item.candidates.map((c, cidx) => (
+                          <button
+                            key={cidx}
+                            onClick={() => {
+                              const replaced = query.replace(new RegExp(item.original, "i"), c.term);
+                              setQuery(replaced);
+                              runSearch(replaced);
+                            }}
+                            className="inline-block bg-white border border-amber-300 rounded px-2 py-0.5 mr-1.5 hover:bg-amber-100 font-medium"
+                          >
+                            {c.term} <span className="text-slate-400">(Edit={c.edit_distance}, Weighted={c.weighted_edit_distance}, Jaccard={c.jaccard})</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Expanded Term Chips */}
+                {searchResponse && searchResponse.expanded_terms && searchResponse.expanded_terms.length > 0 && (
+                  <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Active Query Expansion &amp; Feedback Terms
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {searchResponse.expanded_terms.map((chip, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-0.5 rounded-full text-xs font-medium"
+                        >
+                          <span>+{chip.term}</span>
+                          <span className="text-indigo-500 text-[11px]">({chip.source}, w={chip.weight})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Execution Trace Panel */}
+                {searchResponse && searchResponse.trace && (
+                  <div className="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono space-y-1">
+                    <div className="text-indigo-400 font-bold uppercase tracking-wider mb-1">
+                      Backend Execution Trace ({searchResponse.mode.toUpperCase()} Pipeline)
+                    </div>
+                    {searchResponse.trace.map((step, i) => (
+                      <div key={i} className="leading-relaxed">&gt; {step}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Results List */}
+                {searchResponse && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm text-slate-600 px-1">
+                      <span>
+                        Showing <strong>{searchResponse.total_hits}</strong> matching document(s)
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        Click any document title to view full text &amp; record clickstream feedback
+                      </span>
+                    </div>
+
+                    {searchResponse.results.map((doc) => {
+                      const isRel = relevantIds.includes(doc.id);
+                      const isNonRel = nonrelevantIds.includes(doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          className={`bg-white rounded-xl p-4 shadow-sm border transition ${
+                            isRel ? "border-emerald-500 border-l-4" : isNonRel ? "border-rose-400 border-l-4" : "border-slate-200"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
+                                  Doc #{doc.id}
+                                </span>
+                                <button
+                                  onClick={() => openDocumentModal(doc.id)}
+                                  className="text-base font-bold text-indigo-700 hover:underline text-left"
+                                >
+                                  {doc.title}
+                                </button>
+                                {doc.is_auxiliary && (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[11px] font-semibold">
+                                    Auxiliary Index
+                                  </span>
+                                )}
+                                {doc.acl === "admin" && (
+                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-[11px] font-semibold">
+                                    ACL: Admin
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                Author: <strong>{doc.author}</strong> &bull; Category: <strong>{doc.category}</strong> &bull; Year: <strong>{doc.year}</strong> &bull; File: <code>{doc.filename}</code>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="inline-block bg-indigo-600 text-white px-2.5 py-0.5 rounded-md text-xs font-bold">
+                                Score: {doc.score}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                Cosine: {doc.cosine_score} | Zone: {doc.zone_score}
+                                {doc.click_boost ? ` | Click+: ${doc.click_boost}` : ""}
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-slate-700 mt-2.5 leading-relaxed">
+                            {doc.snippet}
+                          </p>
+
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => toggleRelevant(doc.id)}
+                                className={`px-2.5 py-1 rounded text-xs font-semibold border transition ${
+                                  isRel ? "bg-emerald-600 text-white border-emerald-600" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50"
+                                }`}
+                              >
+                                &#10003; Relevant
+                              </button>
+                              <button
+                                onClick={() => toggleNonrelevant(doc.id)}
+                                className={`px-2.5 py-1 rounded text-xs font-semibold border transition ${
+                                  isNonRel ? "bg-rose-600 text-white border-rose-600" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-rose-50"
+                                }`}
+                              >
+                                &#10007; Not Relevant
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => openDocumentModal(doc.id)}
+                              className="text-xs text-indigo-600 hover:underline font-medium"
+                            >
+                              Open Full Document &rarr;
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </main>
+            </div>
+          )}
+
+          {/* Tab 2: Index & Compression Statistics */}
+          {activeTab === "stats" && statsData && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs text-slate-400 uppercase font-bold">Active Documents</div>
+                  <div className="text-2xl font-bold mt-1">{statsData.corpus.active_documents} / {statsData.corpus.total_documents}</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs text-slate-400 uppercase font-bold">Dictionary Terms</div>
+                  <div className="text-2xl font-bold mt-1">{statsData.corpus.distinct_terms}</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs text-slate-400 uppercase font-bold">Biword Entries</div>
+                  <div className="text-2xl font-bold mt-1">{statsData.corpus.distinct_biwords}</div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs text-slate-400 uppercase font-bold">Permuterm Rotations</div>
+                  <div className="text-2xl font-bold mt-1">{statsData.corpus.permuterm_rotations}</div>
+                </div>
+              </div>
+
+              {/* Compression Comparison Table */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4">Dictionary &amp; Postings Compression Benchmark</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-xs">
+                        <th className="py-2.5 px-3">Index Structure</th>
+                        <th className="py-2.5 px-3">Technique</th>
+                        <th className="py-2.5 px-3">Uncompressed Baseline</th>
+                        <th className="py-2.5 px-3">Compressed Size</th>
+                        <th className="py-2.5 px-3">Space Saved</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="py-3 px-3 font-semibold">Dictionary (Lexicon)</td>
+                        <td className="py-3 px-3">Dictionary-as-a-String with Blocking (k=4)</td>
+                        <td className="py-3 px-3">{statsData.compression.dictionary.fixed_width_bytes} bytes (28B fixed-width)</td>
+                        <td className="py-3 px-3 font-semibold text-indigo-700">{statsData.compression.dictionary.blocked_k4_bytes} bytes</td>
+                        <td className="py-3 px-3 font-bold text-emerald-600">{statsData.compression.dictionary.blocked_savings_pct}%</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 px-3 font-semibold">Dictionary (Lexicon)</td>
+                        <td className="py-3 px-3">Front-Coding on Sorted Prefix Blocks (k=4)</td>
+                        <td className="py-3 px-3">{statsData.compression.dictionary.fixed_width_bytes} bytes (28B fixed-width)</td>
+                        <td className="py-3 px-3 font-semibold text-indigo-700">{statsData.compression.dictionary.front_coded_k4_bytes} bytes</td>
+                        <td className="py-3 px-3 font-bold text-emerald-600">{statsData.compression.dictionary.front_coded_savings_pct}%</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 px-3 font-semibold">Postings File</td>
+                        <td className="py-3 px-3">Gap Encoding + Variable-Byte (VB) Alignment</td>
+                        <td className="py-3 px-3">{statsData.compression.postings.uncompressed_bytes} bytes (32-bit ints)</td>
+                        <td className="py-3 px-3 font-semibold text-indigo-700">{statsData.compression.postings.variable_byte_bytes} bytes</td>
+                        <td className="py-3 px-3 font-bold text-emerald-600">{statsData.compression.postings.vb_savings_pct}%</td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 px-3 font-semibold">Postings File</td>
+                        <td className="py-3 px-3">Gap Encoding + Elias &gamma; (Gamma) Bit-Level Code</td>
+                        <td className="py-3 px-3">{statsData.compression.postings.uncompressed_bytes} bytes (32-bit ints)</td>
+                        <td className="py-3 px-3 font-semibold text-indigo-700">
+                          {statsData.compression.postings.elias_gamma_bytes} bytes ({statsData.compression.postings.elias_gamma_bits} bits)
+                        </td>
+                        <td className="py-3 px-3 font-bold text-emerald-600">{statsData.compression.postings.gamma_savings_pct}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Sample Encoded Postings Table */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-3">Live Gap Encoding Inspector (Variable-Byte &amp; Elias &gamma;)</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left font-mono border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase">
+                        <th className="py-2 px-3">Term</th>
+                        <th className="py-2 px-3">Sorted Doc IDs</th>
+                        <th className="py-2 px-3">Gap Sequence</th>
+                        <th className="py-2 px-3">Variable-Byte (Hex)</th>
+                        <th className="py-2 px-3">Elias &gamma; Bitstream</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {statsData.compression.samples.map((s, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2 px-3 font-bold text-indigo-700">{s.term}</td>
+                          <td className="py-2 px-3">[{s.doc_ids.join(", ")}]</td>
+                          <td className="py-2 px-3">[{s.gaps.join(", ")}]</td>
+                          <td className="py-2 px-3 text-emerald-700">0x{s.vb_hex}</td>
+                          <td className="py-2 px-3 text-amber-700">{s.elias_gamma_bits}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 3: Dynamic Corpus & ACL Management */}
+          {activeTab === "corpus" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+                <h2 className="text-base font-bold mb-3">Insert Document into Auxiliary Index</h2>
+                <form onSubmit={handleAddDocument} className="space-y-3 text-sm">
+                  <input
+                    type="text"
+                    placeholder="Document Title"
+                    value={newDoc.title}
+                    onChange={e => setNewDoc({ ...newDoc, title: e.target.value })}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Author"
+                      value={newDoc.author}
+                      onChange={e => setNewDoc({ ...newDoc, author: e.target.value })}
+                      className="border border-slate-300 rounded-lg px-3 py-2"
+                    />
+                    <select
+                      value={newDoc.acl}
+                      onChange={e => setNewDoc({ ...newDoc, acl: e.target.value })}
+                      className="border border-slate-300 rounded-lg px-3 py-2 bg-slate-50"
+                    >
+                      <option value="public">ACL: Public</option>
+                      <option value="admin">ACL: Admin Restricted</option>
+                    </select>
+                  </div>
+                  <textarea
+                    rows="4"
+                    placeholder="Document text body..."
+                    value={newDoc.body}
+                    onChange={e => setNewDoc({ ...newDoc, body: e.target.value })}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                    required
+                  ></textarea>
+                  <button
+                    type="submit"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg"
+                  >
+                    + Add to Auxiliary Index
+                  </button>
+                </form>
+              </div>
+
+              <div className="lg:col-span-7 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold">Corpus Documents &amp; Invalidation Bit-Vector</h2>
+                  <button
+                    onClick={handleRestoreDocs}
+                    className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium"
+                  >
+                    Restore Deleted Docs
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                  {corpusDocs.map((d) => (
+                    <div
+                      key={d.id}
+                      className={`p-3 rounded-lg border flex items-center justify-between text-sm ${
+                        d.is_deleted ? "bg-rose-50 border-rose-200 opacity-60" : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold flex items-center gap-2">
+                          <span>Doc #{d.id}: {d.title}</span>
+                          {d.is_auxiliary && <span className="text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Auxiliary</span>}
+                          {d.acl === "admin" && <span className="text-[11px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded">Admin ACL</span>}
+                          {d.is_deleted && <span className="text-[11px] bg-rose-600 text-white px-2 py-0.5 rounded">Bit-Vector Deleted</span>}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Author: {d.author} &bull; Category: {d.category} &bull; Year: {d.year}
+                        </div>
+                      </div>
+                      {!d.is_deleted && (
+                        <button
+                          onClick={() => handleDeleteDoc(d.id)}
+                          className="text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold px-2.5 py-1 rounded"
+                        >
+                          Invalidate
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Full Document Modal */}
+          {selectedDoc && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl">
+                <div className="flex items-start justify-between border-b border-slate-200 pb-3 mb-4">
+                  <div>
+                    <span className="text-xs font-mono text-indigo-600 font-bold">Document #{selectedDoc.id} ({selectedDoc.filename})</span>
+                    <h3 className="text-xl font-bold mt-0.5">{selectedDoc.title}</h3>
+                    <div className="text-xs text-slate-500 mt-1">
+                      Author: {selectedDoc.author} &bull; Category: {selectedDoc.category} &bull; Year: {selectedDoc.year} &bull; ACL: {selectedDoc.acl}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDoc(null)}
+                    className="text-slate-400 hover:text-slate-700 text-xl font-bold px-2"
+                  >
+                    &times;
+                  </button>
+                </div>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                  {selectedDoc.body}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>

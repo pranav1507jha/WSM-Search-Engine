@@ -1,0 +1,8 @@
+Title: Heaps Law and Dictionary Compression Techniques
+Author: Alistair Moffat
+Category: Compression
+Year: 2024
+Language: English
+ACL: public
+---
+Heaps law predicts vocabulary growth as a power function of collection tokens. Fixed-width dictionary arrays waste substantial RAM because English words average eight characters. Storing the dictionary as a single concatenated string with block pointers every four terms and front-coding shared alphabetical prefixes like automata, automate, automatic, and automation reduces memory footprint dramatically.

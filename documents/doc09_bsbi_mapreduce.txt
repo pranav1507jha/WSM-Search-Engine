@@ -1,0 +1,8 @@
+Title: Scalable Index Construction BSBI and MapReduce
+Author: Jeffrey Dean
+Category: Architecture
+Year: 2025
+Language: English
+ACL: public
+---
+Constructing an inverted index over massive corpora exceeds main memory capacity and requires external sorting algorithms. Blocked Sort-Based Indexing segments term-document records into fixed memory blocks, quicksorts each block in RAM, and performs a multi-way disk merge. Distributed web indexers use MapReduce parser and inverter worker pools alongside dynamic auxiliary indexes and invalidation bit-vectors for real-time updates.

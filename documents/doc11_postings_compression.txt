@@ -1,0 +1,8 @@
+Title: Zipfs Law Variable Byte and Elias Gamma Postings Compression
+Author: Peter Elias
+Category: Compression
+Year: 2024
+Language: English
+ACL: public
+---
+Zipfs law states that term frequency is inversely proportional to term rank. Frequent words produce small gaps between consecutive document IDs in postings lists. Variable-byte compression encodes gaps using seven data bits and one continuation bit per byte for fast hardware alignment, whereas Elias gamma coding pairs a unary length prefix with a binary offset for bit-level entropy compression.

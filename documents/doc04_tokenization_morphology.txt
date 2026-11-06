@@ -1,0 +1,8 @@
+Title: Tokenization Case Folding Stemming and Lemmatization
+Author: Martin Porter
+Category: Linguistics
+Year: 2023
+Language: English
+ACL: public
+---
+Linguistic preprocessing converts raw character streams into normalized index tokens. Equivalence class normalization removes periods in acronyms like U.S.A. and strips diacritics from words like resume. Porter stemming applies five sequential phases of suffix stripping rules to reduce automate, automatic, and automation to automat, while lemmatization uses morphological analysis to map inflectional forms like am, are, and is to their dictionary headword be.
