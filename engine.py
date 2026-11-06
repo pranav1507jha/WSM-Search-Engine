@@ -7,7 +7,7 @@ import unicodedata
 from collections import defaultdict
 from typing import List, Dict, Set, Tuple, Optional
 
-from compression import (
+from index_compression import (
     BlockedDictionary,
     VariableByteCodec,
     EliasGammaCodec,
